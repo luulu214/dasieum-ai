@@ -344,9 +344,9 @@ function buildOutputs() {
 }
 
 function syncOutputsFromEditor() {
-  state.outputs.resume = elements.resumeOutput.innerText.trim();
-  state.outputs.intro = elements.introOutput.innerText.trim();
-  state.outputs.interview = elements.interviewOutput.innerText.trim();
+  state.outputs.resume = elements.resumeOutput.textContent.trim();
+  state.outputs.intro = elements.introOutput.textContent.trim();
+  state.outputs.interview = elements.interviewOutput.textContent.trim();
 }
 
 function openPrintView() {
