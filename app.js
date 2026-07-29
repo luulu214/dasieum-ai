@@ -1,4 +1,7 @@
 const STORAGE_KEY = "dasieum-career-project-v1";
+const API_KEY_STORAGE = "dasieum-upstage-api-key-session";
+const UPSTAGE_API_URL = "https://api.upstage.ai/v1";
+const UPSTAGE_MODEL = "solar-pro3";
 
 const emptyState = () => ({
   currentStep: 1,
@@ -62,6 +65,12 @@ const elements = {
   completionRate: $("#completion-rate"),
   completionRing: $("#completion-ring"),
   resetDialog: $("#reset-dialog"),
+  aiDialog: $("#ai-dialog"),
+  aiForm: $("#ai-form"),
+  apiKey: $("#upstage-api-key"),
+  aiStatusLabel: $("#ai-status-label"),
+  aiConnectionMessage: $("#ai-connection-message"),
+  disconnectAi: $("#disconnect-ai"),
 };
 
 function loadState() {
@@ -82,6 +91,77 @@ function queueSave() {
     elements.saveStatus.textContent = "자동 저장됨";
     elements.saveStatus.classList.remove("saving");
   }, 220);
+}
+
+function getApiKey() {
+  return sessionStorage.getItem(API_KEY_STORAGE) || "";
+}
+
+function updateAiStatus() {
+  const connected = Boolean(getApiKey());
+  $("#ai-settings").classList.toggle("connected", connected);
+  elements.aiStatusLabel.textContent = connected ? "Solar 연결됨" : "Solar AI 연결";
+  elements.disconnectAi.hidden = !connected;
+}
+
+function setButtonLoading(button, loading, label) {
+  const buttonLabel = button.querySelector(".button-label");
+  button.disabled = loading;
+  button.classList.toggle("loading", loading);
+  if (buttonLabel) buttonLabel.textContent = loading ? label : button.dataset.defaultLabel;
+}
+
+function parseJsonResponse(content) {
+  const clean = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const start = clean.indexOf("{");
+  const end = clean.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("AI 응답 형식을 확인할 수 없습니다.");
+  return JSON.parse(clean.slice(start, end + 1));
+}
+
+async function callSolar(system, user) {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+
+  const response = await fetch(`${UPSTAGE_API_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: UPSTAGE_MODEL,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      temperature: 0.2,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("API Key가 올바르지 않습니다. Solar 연결 설정에서 다시 확인해주세요.");
+    }
+    throw new Error(`Solar 연결에 실패했습니다. (${response.status})`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("Solar 응답이 비어 있습니다.");
+  return content;
+}
+
+async function validateUpstageKey(apiKey) {
+  const response = await fetch(`${UPSTAGE_API_URL}/models`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) throw new Error("유효하지 않은 API Key입니다.");
+    throw new Error(`연결 확인에 실패했습니다. (${response.status})`);
+  }
+  return true;
 }
 
 function escapeHtml(value = "") {
@@ -242,6 +322,55 @@ function buildFactStatements() {
   queueSave();
 }
 
+async function buildFactStatementsWithAI() {
+  const button = $("#generate-facts");
+  if (!getApiKey()) {
+    buildFactStatements();
+    toast("기본 경력번역으로 만들었습니다. Solar를 연결하면 문장을 더 자연스럽게 다듬을 수 있어요.");
+    return;
+  }
+
+  setButtonLoading(button, true, "Solar가 번역 중…");
+  try {
+    syncStateFromInputs();
+    const source = {
+      희망직무: state.profile.jobGoal,
+      경험유형: state.profile.category,
+      경험요약: state.profile.experience,
+      기간: state.interview.period,
+      상황: state.interview.situation,
+      역할: state.interview.role,
+      행동: state.interview.action,
+      도구와협업: state.interview.tools,
+      결과: state.interview.result,
+    };
+    const response = await callSolar(
+      "당신은 한국어 경력기술서 편집자입니다. 사용자가 제공하지 않은 숫자, 기간, 성과, 도구를 절대 만들지 마세요. 과장 없이 사실만 명확하게 정리하고 JSON만 반환하세요.",
+      `다음 경험을 희망 직무와 연결되는 3개의 경력 문장으로 정리하세요.
+각 문장은 역할과 책임, 문제 해결 행동, 결과와 직무 연결을 하나씩 담당해야 합니다.
+반환 형식: {"facts":[{"label":"역할과 책임","text":"...","evidence":"입력 근거 요약"},{"label":"문제 해결 행동","text":"...","evidence":"입력 근거 요약"},{"label":"결과와 직무 연결","text":"...","evidence":"입력 근거 요약"}]}
+입력: ${JSON.stringify(source)}`,
+    );
+    const parsed = parseJsonResponse(response);
+    if (!Array.isArray(parsed.facts) || parsed.facts.length !== 3) throw new Error("경력 문장 형식이 올바르지 않습니다.");
+    state.facts = parsed.facts.map((fact, index) => ({
+      id: ["fact-role", "fact-action", "fact-result"][index],
+      label: String(fact.label || ["역할과 책임", "문제 해결 행동", "결과와 직무 연결"][index]),
+      text: String(fact.text || ""),
+      evidence: String(fact.evidence || ""),
+      approved: false,
+    }));
+    renderFacts();
+    queueSave();
+    toast("Solar가 입력한 사실 안에서 경력 문장을 다듬었습니다.");
+  } catch (error) {
+    buildFactStatements();
+    toast(`${error.message} 기본 경력번역으로 대신 만들었습니다.`);
+  } finally {
+    setButtonLoading(button, false, "");
+  }
+}
+
 function renderFacts() {
   elements.factList.innerHTML = state.facts
     .map(
@@ -341,6 +470,38 @@ function buildOutputs() {
   elements.interviewOutput.textContent = state.outputs.interview;
   elements.competencyTags.innerHTML = competencies.map((tag) => `<b>${escapeHtml(tag)}</b>`).join("");
   queueSave();
+}
+
+async function buildOutputsWithAI() {
+  const button = elements.buildResults;
+  buildOutputs();
+  if (!getApiKey()) return;
+
+  setButtonLoading(button, true, "Solar가 작성 중…");
+  try {
+    const approvedFacts = state.facts.filter((fact) => fact.approved).map((fact) => fact.text);
+    const response = await callSolar(
+      "당신은 한국어 취업 문서 편집자입니다. 제공된 사실 밖의 정보는 만들지 말고, 과장·추측·허위 수치를 쓰지 마세요. 읽기 쉬운 한국어로 작성하고 JSON만 반환하세요.",
+      `희망 직무 ${state.profile.jobGoal}, 경험 유형 ${state.profile.category}에 맞춰 아래 승인된 사실로 지원 문서를 작성하세요.
+반환 형식: {"resume":"불릿 3개","intro":"30초 분량 자기소개","interview":"예상 질문 1개와 S/T/A/R 구조 답변"}
+승인된 사실: ${JSON.stringify(approvedFacts)}
+원문 답변: ${JSON.stringify(state.interview)}`,
+    );
+    const parsed = parseJsonResponse(response);
+    if (!parsed.resume || !parsed.intro || !parsed.interview) throw new Error("지원 문서 형식이 올바르지 않습니다.");
+    state.outputs.resume = String(parsed.resume);
+    state.outputs.intro = String(parsed.intro);
+    state.outputs.interview = String(parsed.interview);
+    elements.resumeOutput.textContent = state.outputs.resume;
+    elements.introOutput.textContent = state.outputs.intro;
+    elements.interviewOutput.textContent = state.outputs.interview;
+    queueSave();
+    toast("Solar가 지원 문서를 완성했습니다.");
+  } catch (error) {
+    toast(`${error.message} 기본 결과물을 유지합니다.`);
+  } finally {
+    setButtonLoading(button, false, "");
+  }
 }
 
 function syncOutputsFromEditor() {
@@ -532,15 +693,15 @@ function bindEvents() {
     showStep(2);
   });
 
-  $("#generate-facts").addEventListener("click", () => {
+  $("#generate-facts").addEventListener("click", async () => {
     if (!validateInterview()) return;
-    buildFactStatements();
+    await buildFactStatementsWithAI();
     unlockStep(3);
     showStep(3);
   });
 
-  elements.buildResults.addEventListener("click", () => {
-    buildOutputs();
+  elements.buildResults.addEventListener("click", async () => {
+    await buildOutputsWithAI();
     unlockStep(4);
     showStep(4);
   });
@@ -580,11 +741,59 @@ function bindEvents() {
   $("#restart-service").addEventListener("click", () => elements.resetDialog.showModal());
   $("#reset-top").addEventListener("click", () => elements.resetDialog.showModal());
   $("#confirm-reset").addEventListener("click", resetProject);
+  $("#ai-settings").addEventListener("click", () => {
+    elements.apiKey.value = "";
+    elements.apiKey.type = "password";
+    $("#toggle-api-key").textContent = "보기";
+    elements.aiConnectionMessage.textContent = getApiKey()
+      ? "Solar가 연결되어 있습니다. 새 키를 입력하면 현재 연결을 교체할 수 있습니다."
+      : "API Key는 AI 생성 요청을 위해 api.upstage.ai로만 전송됩니다.";
+    elements.aiConnectionMessage.className = "connection-message";
+    updateAiStatus();
+    elements.aiDialog.showModal();
+  });
+  $("#close-ai-dialog").addEventListener("click", () => elements.aiDialog.close());
+  $("#toggle-api-key").addEventListener("click", () => {
+    const visible = elements.apiKey.type === "text";
+    elements.apiKey.type = visible ? "password" : "text";
+    $("#toggle-api-key").textContent = visible ? "보기" : "숨기기";
+  });
+  elements.disconnectAi.addEventListener("click", () => {
+    sessionStorage.removeItem(API_KEY_STORAGE);
+    updateAiStatus();
+    elements.aiDialog.close();
+    toast("Solar 연결을 해제했습니다.");
+  });
+  elements.aiForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const key = elements.apiKey.value.trim();
+    if (!key) return;
+    const connectButton = $("#connect-ai");
+    connectButton.disabled = true;
+    connectButton.textContent = "연결 확인 중…";
+    elements.aiConnectionMessage.textContent = "Upstage에 안전하게 연결하고 있습니다.";
+    elements.aiConnectionMessage.className = "connection-message checking";
+    try {
+      await validateUpstageKey(key);
+      sessionStorage.setItem(API_KEY_STORAGE, key);
+      updateAiStatus();
+      elements.aiConnectionMessage.textContent = `연결되었습니다. ${UPSTAGE_MODEL}로 경력 문장을 생성합니다.`;
+      elements.aiConnectionMessage.className = "connection-message success";
+      window.setTimeout(() => elements.aiDialog.close(), 700);
+    } catch (error) {
+      elements.aiConnectionMessage.textContent = `${error.message} 브라우저에서 연결이 차단되면 기본 번역 기능을 이용해주세요.`;
+      elements.aiConnectionMessage.className = "connection-message error";
+    } finally {
+      connectButton.disabled = false;
+      connectButton.textContent = "연결 확인";
+    }
+  });
 }
 
 populateInputs();
 restoreGeneratedContent();
 bindEvents();
+updateAiStatus();
 
 elements.contextCategory.textContent = state.profile.category || "경험 유형";
 elements.contextSummary.textContent = state.profile.experience || "입력한 경험이 여기에 표시됩니다.";
