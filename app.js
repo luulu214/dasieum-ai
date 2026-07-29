@@ -349,6 +349,13 @@ function syncOutputsFromEditor() {
   state.outputs.interview = elements.interviewOutput.innerText.trim();
 }
 
+function openPrintView() {
+  syncStateFromInputs();
+  syncOutputsFromEditor();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  window.location.href = "./print.html";
+}
+
 function buildActionPlan() {
   const goal = state.profile.jobGoal || "희망 직무";
   const region = state.profile.region || "희망 지역";
@@ -569,7 +576,7 @@ function bindEvents() {
     unlockStep(5);
     showStep(5);
   });
-  $("#print-results").addEventListener("click", () => window.print());
+  $("#print-results").addEventListener("click", openPrintView);
   $("#restart-service").addEventListener("click", () => elements.resetDialog.showModal());
   $("#reset-top").addEventListener("click", () => elements.resetDialog.showModal());
   $("#confirm-reset").addEventListener("click", resetProject);

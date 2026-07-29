@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#087d72" />
+    <title>다시이음 AI · 경력번역 결과</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@600;700&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./print.css" />
+    <script src="./print.js" defer></script>
+  </head>
+  <body>
+    <header class="print-toolbar">
+      <a class="back-link" href="./app.html">← 결과 수정하기</a>
+      <div class="toolbar-actions">
+        <button id="download-print-file" class="secondary-button" type="button">인쇄 파일 저장</button>
+        <button id="start-print" class="primary-button" type="button">인쇄 · PDF 저장</button>
+      </div>
+    </header>
+
+    <main class="print-page" id="print-page">
+      <section class="cover">
+        <div>
+          <p class="eyebrow">DASIEUM AI · CAREER TRANSLATION REPORT</p>
+          <h1>흩어진 경험을<br />지원 가능한 언어로.</h1>
+          <p class="cover-copy">
+            사용자가 직접 확인한 사실만으로 정리한 경력번역 결과입니다.
+          </p>
+        </div>
+        <div class="profile-card">
+          <div>
+            <span>희망 직무</span>
+            <strong id="job-goal">-</strong>
+          </div>
+          <div class="profile-grid">
+            <p><span>경험 유형</span><b id="category">-</b></p>
+            <p><span>희망 지역</span><b id="region">-</b></p>
+            <p><span>생성일</span><b id="created-date">-</b></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="report-section">
+        <div class="section-heading">
+          <span>01</span>
+          <div>
+            <p>FACT-LOCK</p>
+            <h2>검증된 경력 문장</h2>
+          </div>
+        </div>
+        <div id="facts" class="fact-grid"></div>
+      </section>
+
+      <section class="report-section output-section">
+        <div class="section-heading">
+          <span>02</span>
+          <div>
+            <p>APPLICATION ASSETS</p>
+            <h2>지원 문서</h2>
+          </div>
+        </div>
+        <article class="output-card">
+          <p>RESUME</p>
+          <h3>이력서 핵심 문장</h3>
+          <div id="resume-output" class="output-text"></div>
+        </article>
+        <article class="output-card">
+          <p>30-SECOND INTRODUCTION</p>
+          <h3>30초 자기소개</h3>
+          <div id="intro-output" class="output-text"></div>
+        </article>
+        <article class="output-card">
+          <p>STAR INTERVIEW</p>
+          <h3>면접 답변</h3>
+          <div id="interview-output" class="output-text"></div>
+        </article>
+      </section>
+
+      <section class="report-section action-section">
+        <div class="section-heading">
+          <span>03</span>
+          <div>
+            <p>7-DAY ACTION PLAN</p>
+            <h2>실행 체크리스트</h2>
+          </div>
+        </div>
+        <div id="action-plan" class="action-list"></div>
+      </section>
+
+      <section id="empty-state" class="empty-state" hidden>
+        <span>!</span>
+        <h2>아직 인쇄할 결과가 없습니다.</h2>
+        <p>경력번역을 완료한 뒤 다시 인쇄용 문서를 열어주세요.</p>
+        <a href="./app.html">경력번역 시작하기</a>
+      </section>
+
+      <footer>
+        <strong>다시이음 AI</strong>
+        <span>경험은 사라지지 않습니다. 다시 연결될 뿐입니다.</span>
+      </footer>
+    </main>
+
+    <p class="print-help">
+      인쇄 창이 열리지 않으면 키보드에서 <b>Ctrl + P</b>를 눌러주세요. 모바일에서는 브라우저 메뉴의
+      ‘인쇄’ 또는 ‘PDF로 저장’을 선택할 수 있습니다.
+    </p>
+  </body>
+</html>
