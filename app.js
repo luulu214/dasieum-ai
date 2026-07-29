@@ -32,6 +32,8 @@ const emptyState = () => ({
 let state = loadState();
 let activeResultTab = "resume";
 let saveTimer;
+let chatHistory = [];
+let chatBusy = false;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -71,6 +73,13 @@ const elements = {
   aiStatusLabel: $("#ai-status-label"),
   aiConnectionMessage: $("#ai-connection-message"),
   disconnectAi: $("#disconnect-ai"),
+  chatPanel: $("#chat-panel"),
+  chatLauncher: $("#chat-launcher"),
+  chatMessages: $("#chat-messages"),
+  chatInput: $("#chat-input"),
+  chatSend: $("#chat-send"),
+  chatConnectionLabel: $("#chat-connection-label"),
+  chatConnectAi: $("#chat-connect-ai"),
 };
 
 function loadState() {
@@ -102,6 +111,9 @@ function updateAiStatus() {
   $("#ai-settings").classList.toggle("connected", connected);
   elements.aiStatusLabel.textContent = connected ? "Solar 연결됨" : "Solar AI 연결";
   elements.disconnectAi.hidden = !connected;
+  elements.chatConnectionLabel.textContent = connected ? `${UPSTAGE_MODEL} 연결됨` : "Solar 연결 필요";
+  elements.chatConnectAi.textContent = connected ? "연결 관리" : "AI 연결";
+  elements.chatPanel.classList.toggle("connected", connected);
 }
 
 function setButtonLoading(button, loading, label) {
@@ -119,7 +131,7 @@ function parseJsonResponse(content) {
   return JSON.parse(clean.slice(start, end + 1));
 }
 
-async function callSolar(system, user) {
+async function requestSolar(messages) {
   const apiKey = getApiKey();
   if (!apiKey) return null;
 
@@ -131,10 +143,7 @@ async function callSolar(system, user) {
     },
     body: JSON.stringify({
       model: UPSTAGE_MODEL,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+      messages,
       temperature: 0.2,
       stream: false,
     }),
@@ -151,6 +160,13 @@ async function callSolar(system, user) {
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("Solar 응답이 비어 있습니다.");
   return content;
+}
+
+async function callSolar(system, user) {
+  return requestSolar([
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ]);
 }
 
 async function validateUpstageKey(apiKey) {
@@ -634,6 +650,122 @@ function toast(message) {
   }, 2600);
 }
 
+function openAiDialog() {
+  elements.apiKey.value = "";
+  elements.apiKey.type = "password";
+  $("#toggle-api-key").textContent = "보기";
+  elements.aiConnectionMessage.textContent = getApiKey()
+    ? "Solar가 연결되어 있습니다. 새 키를 입력하면 현재 연결을 교체할 수 있습니다."
+    : "API Key는 AI 생성 요청을 위해 api.upstage.ai로만 전송됩니다.";
+  elements.aiConnectionMessage.className = "connection-message";
+  updateAiStatus();
+  elements.aiDialog.showModal();
+}
+
+function addChatMessage(role, text) {
+  const message = document.createElement("article");
+  message.className = `chat-message ${role}`;
+  const label = document.createElement("span");
+  label.textContent = role === "user" ? "나" : "다시이음 AI";
+  const copy = document.createElement("p");
+  copy.textContent = text;
+  message.append(label, copy);
+  elements.chatMessages.appendChild(message);
+  elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+  return message;
+}
+
+function ensureChatWelcome() {
+  if (elements.chatMessages.children.length) return;
+  addChatMessage(
+    "assistant",
+    "안녕하세요. 입력한 경험을 바탕으로 이력서 문장, 강점 찾기, 면접 연습을 도와드릴게요. 무엇이 가장 궁금한가요?",
+  );
+}
+
+function openChat() {
+  ensureChatWelcome();
+  elements.chatPanel.hidden = false;
+  elements.chatLauncher.classList.add("panel-open");
+  elements.chatLauncher.setAttribute("aria-expanded", "true");
+  window.setTimeout(() => elements.chatInput.focus(), 50);
+}
+
+function closeChat() {
+  elements.chatPanel.hidden = true;
+  elements.chatLauncher.classList.remove("panel-open");
+  elements.chatLauncher.setAttribute("aria-expanded", "false");
+}
+
+function chatContext() {
+  return {
+    희망직무: state.profile.jobGoal || "미입력",
+    희망지역: state.profile.region || "미입력",
+    경험유형: state.profile.category || "미입력",
+    경험요약: state.profile.experience || "미입력",
+    인터뷰답변: state.interview,
+    승인된경력문장: state.facts.filter((fact) => fact.approved).map((fact) => fact.text),
+    현재지원문서: state.outputs,
+  };
+}
+
+function setChatBusy(busy) {
+  chatBusy = busy;
+  elements.chatInput.disabled = busy;
+  elements.chatSend.disabled = busy;
+  elements.chatSend.textContent = busy ? "…" : "↑";
+  elements.chatPanel.classList.toggle("thinking", busy);
+}
+
+async function sendChatMessage(rawMessage) {
+  const message = rawMessage.trim();
+  if (!message || chatBusy) return;
+
+  addChatMessage("user", message);
+  elements.chatInput.value = "";
+
+  if (!getApiKey()) {
+    addChatMessage(
+      "assistant",
+      "Solar AI 연결이 필요해요. 채팅창 위의 ‘AI 연결’을 눌러 Upstage API Key를 연결하면 바로 상담할 수 있습니다.",
+    );
+    return;
+  }
+
+  chatHistory.push({ role: "user", content: message });
+  chatHistory = chatHistory.slice(-10);
+  setChatBusy(true);
+  const typing = addChatMessage("assistant", "답변을 정리하고 있어요…");
+  typing.classList.add("typing");
+
+  try {
+    const system = `당신은 다시이음 AI의 한국어 커리어 코치입니다.
+사용자의 생활 경험을 취업에 활용할 수 있도록 구체적이고 따뜻하게 돕습니다.
+제공된 맥락에 없는 수치, 기간, 성과, 자격, 경력을 절대 만들어내지 마세요.
+정보가 부족하면 추측하지 말고 한 번에 한 가지 질문만 하세요.
+답변은 모바일에서 읽기 좋게 5문장 이내를 기본으로 하되, 사용자가 자세한 설명을 원하면 확장하세요.
+취업 결과를 보장하지 말고 최종 지원 전 사실과 공고 확인을 안내하세요.
+현재 사용자 맥락: ${JSON.stringify(chatContext())}`;
+    const response = await requestSolar([
+      { role: "system", content: system },
+      ...chatHistory,
+    ]);
+    typing.remove();
+    addChatMessage("assistant", response);
+    chatHistory.push({ role: "assistant", content: response });
+    chatHistory = chatHistory.slice(-10);
+  } catch (error) {
+    typing.remove();
+    addChatMessage(
+      "assistant",
+      `${error.message} 상단의 AI 연결 설정을 확인한 뒤 다시 질문해주세요.`,
+    );
+  } finally {
+    setChatBusy(false);
+    elements.chatInput.focus();
+  }
+}
+
 function resetProject() {
   localStorage.removeItem(STORAGE_KEY);
   state = emptyState();
@@ -741,17 +873,7 @@ function bindEvents() {
   $("#restart-service").addEventListener("click", () => elements.resetDialog.showModal());
   $("#reset-top").addEventListener("click", () => elements.resetDialog.showModal());
   $("#confirm-reset").addEventListener("click", resetProject);
-  $("#ai-settings").addEventListener("click", () => {
-    elements.apiKey.value = "";
-    elements.apiKey.type = "password";
-    $("#toggle-api-key").textContent = "보기";
-    elements.aiConnectionMessage.textContent = getApiKey()
-      ? "Solar가 연결되어 있습니다. 새 키를 입력하면 현재 연결을 교체할 수 있습니다."
-      : "API Key는 AI 생성 요청을 위해 api.upstage.ai로만 전송됩니다.";
-    elements.aiConnectionMessage.className = "connection-message";
-    updateAiStatus();
-    elements.aiDialog.showModal();
-  });
+  $("#ai-settings").addEventListener("click", openAiDialog);
   $("#close-ai-dialog").addEventListener("click", () => elements.aiDialog.close());
   $("#toggle-api-key").addEventListener("click", () => {
     const visible = elements.apiKey.type === "text";
@@ -787,6 +909,24 @@ function bindEvents() {
       connectButton.disabled = false;
       connectButton.textContent = "연결 확인";
     }
+  });
+  elements.chatLauncher.addEventListener("click", openChat);
+  $("#chat-close").addEventListener("click", closeChat);
+  elements.chatConnectAi.addEventListener("click", openAiDialog);
+  $("#chat-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await sendChatMessage(elements.chatInput.value);
+  });
+  elements.chatInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      $("#chat-form").requestSubmit();
+    }
+  });
+  $$("[data-chat-prompt]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await sendChatMessage(button.dataset.chatPrompt);
+    });
   });
 }
 

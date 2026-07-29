@@ -15,8 +15,8 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=DM+Sans:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./app.css?v=20260729-4" />
-    <script src="./app.js?v=20260729-3" defer></script>
+    <link rel="stylesheet" href="./app.css?v=20260729-5" />
+    <script src="./app.js?v=20260729-5" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#workspace">작업 영역으로 바로가기</a>
@@ -268,6 +268,53 @@
         </section>
       </section>
     </main>
+
+    <button
+      id="chat-launcher"
+      class="chat-launcher"
+      type="button"
+      aria-controls="chat-panel"
+      aria-expanded="false"
+    >
+      <span class="chat-launcher-icon">✦</span>
+      <span>AI 커리어 상담</span>
+    </button>
+
+    <aside id="chat-panel" class="chat-panel" role="dialog" aria-label="다시이음 AI 커리어 상담" hidden>
+      <header class="chat-header">
+        <div>
+          <span class="chat-avatar">다</span>
+          <div>
+            <h2>다시이음 커리어 코치</h2>
+            <p><i></i><span id="chat-connection-label">Solar 연결 필요</span></p>
+          </div>
+        </div>
+        <div class="chat-header-actions">
+          <button id="chat-connect-ai" type="button">AI 연결</button>
+          <button id="chat-close" type="button" aria-label="챗봇 닫기">×</button>
+        </div>
+      </header>
+
+      <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+
+      <div class="chat-suggestions" aria-label="추천 질문">
+        <button type="button" data-chat-prompt="내 경험에서 지원 직무와 연결할 수 있는 강점 3가지를 찾아줘.">내 강점 찾기</button>
+        <button type="button" data-chat-prompt="현재 이력서 문장을 더 구체적이고 읽기 쉽게 다듬어줘.">문장 다듬기</button>
+        <button type="button" data-chat-prompt="내 경험을 바탕으로 면접 연습 질문을 하나씩 해줘.">면접 연습</button>
+      </div>
+
+      <form id="chat-form" class="chat-form">
+        <label class="sr-only" for="chat-input">커리어 상담 질문</label>
+        <textarea
+          id="chat-input"
+          rows="1"
+          maxlength="700"
+          placeholder="경력이나 지원 준비를 물어보세요"
+        ></textarea>
+        <button id="chat-send" type="submit" aria-label="메시지 보내기">↑</button>
+      </form>
+      <p class="chat-disclaimer">AI 답변은 참고용입니다. 지원 전 사실과 공고를 다시 확인하세요.</p>
+    </aside>
 
     <dialog id="reset-dialog">
       <form method="dialog">
