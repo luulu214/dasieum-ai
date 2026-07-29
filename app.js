@@ -3,6 +3,99 @@ const API_KEY_STORAGE = "dasieum-upstage-api-key-session";
 const UPSTAGE_API_URL = "https://api.upstage.ai/v1";
 const UPSTAGE_MODEL = "solar-pro3";
 
+const EXPERIENCE_EXAMPLES = [
+  {
+    id: "office",
+    filter: "office",
+    field: "사무·행정",
+    title: "회비와 지출 내역 정리",
+    jobGoal: "사무지원",
+    category: "가사·가족사업",
+    summary: "모임 총무를 맡아 회비 납부 내역과 월별 지출을 스프레드시트로 정리하고 구성원에게 공유했습니다.",
+    tags: ["자료 정리", "정확성"],
+  },
+  {
+    id: "schedule",
+    filter: "office",
+    field: "사무·행정",
+    title: "가족 일정 통합 관리",
+    jobGoal: "일정관리·사무보조",
+    category: "돌봄·육아",
+    summary: "가족의 병원, 학교, 공공기관 일정을 한 달 단위로 정리하고 필요한 서류와 준비물을 미리 확인했습니다.",
+    tags: ["일정 관리", "사전 점검"],
+  },
+  {
+    id: "customer",
+    filter: "service",
+    field: "고객응대",
+    title: "문의와 주문 요청 대응",
+    jobGoal: "고객상담",
+    category: "가사·가족사업",
+    summary: "가족이 운영하는 가게에서 전화와 메시지 문의를 확인하고 주문 내용, 전달사항, 배송 일정을 정리했습니다.",
+    tags: ["고객 소통", "요청 정리"],
+  },
+  {
+    id: "sales",
+    filter: "service",
+    field: "판매·매장",
+    title: "재고 확인과 진열 개선",
+    jobGoal: "매장관리",
+    category: "가사·가족사업",
+    summary: "판매가 잦은 상품과 부족한 재고를 수시로 확인하고 고객이 찾기 쉽도록 진열 위치와 안내 문구를 정리했습니다.",
+    tags: ["재고 관리", "고객 관점"],
+  },
+  {
+    id: "care",
+    filter: "care",
+    field: "돌봄·교육",
+    title: "생활·학습 루틴 관리",
+    jobGoal: "돌봄지원·교육보조",
+    category: "돌봄·육아",
+    summary: "아이의 등하원, 식사, 학습 시간을 일정하게 관리하고 변화가 있을 때 가족과 바로 공유해 일정을 조정했습니다.",
+    tags: ["관찰", "일정 조율"],
+  },
+  {
+    id: "event",
+    filter: "field",
+    field: "행사·지역운영",
+    title: "행사 인력 재배치",
+    jobGoal: "행사운영·현장지원",
+    category: "봉사·지역 활동",
+    summary: "지역 행사 준비 과정에서 참여자 가능 시간을 다시 확인하고 담당 구역별 인력을 조정해 운영 공백을 줄였습니다.",
+    tags: ["현장 대응", "인력 조율"],
+  },
+  {
+    id: "logistics",
+    filter: "field",
+    field: "물류·재고",
+    title: "포장 순서와 누락 점검",
+    jobGoal: "물류·재고관리",
+    category: "가사·가족사업",
+    summary: "발송할 물품을 주문 순서대로 분류하고 포장 전 목록과 실제 수량을 대조해 누락 여부를 확인했습니다.",
+    tags: ["검수", "작업 순서"],
+  },
+  {
+    id: "facility",
+    filter: "field",
+    field: "시설·환경관리",
+    title: "공용공간 점검표 운영",
+    jobGoal: "시설관리·환경미화",
+    category: "봉사·지역 활동",
+    summary: "공용공간의 청소 구역과 비품 상태를 점검표로 관리하고 부족한 소모품을 미리 확인해 보충했습니다.",
+    tags: ["체크리스트", "예방 관리"],
+  },
+  {
+    id: "digital",
+    filter: "digital",
+    field: "디지털·콘텐츠",
+    title: "게시물 제작 일정 관리",
+    jobGoal: "콘텐츠운영·마케팅보조",
+    category: "학습·개인 프로젝트",
+    summary: "개인 채널의 게시 주제와 업로드 일정을 정하고 이미지 편집 도구로 콘텐츠를 제작한 뒤 반응을 기록했습니다.",
+    tags: ["콘텐츠 제작", "기록"],
+  },
+];
+
 const emptyState = () => ({
   currentStep: 1,
   unlockedStep: 1,
@@ -80,6 +173,7 @@ const elements = {
   chatSend: $("#chat-send"),
   chatConnectionLabel: $("#chat-connection-label"),
   chatConnectAi: $("#chat-connect-ai"),
+  exampleGrid: $("#experience-example-grid"),
 };
 
 function loadState() {
@@ -186,6 +280,42 @@ function escapeHtml(value = "") {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function renderExperienceExamples(filter = "all") {
+  const examples = filter === "all"
+    ? EXPERIENCE_EXAMPLES
+    : EXPERIENCE_EXAMPLES.filter((example) => example.filter === filter);
+
+  elements.exampleGrid.innerHTML = examples
+    .map(
+      (example) => `
+        <button class="example-card" type="button" data-example-id="${escapeHtml(example.id)}">
+          <span class="example-field">${escapeHtml(example.field)}</span>
+          <strong>${escapeHtml(example.title)}</strong>
+          <p>${escapeHtml(example.summary)}</p>
+          <span class="example-tags">${example.tags.map((tag) => `<b>${escapeHtml(tag)}</b>`).join("")}</span>
+          <span class="example-apply">이 예시로 시작하기 <i>→</i></span>
+        </button>
+      `,
+    )
+    .join("");
+
+  $$("[data-example-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const example = EXPERIENCE_EXAMPLES.find((item) => item.id === button.dataset.exampleId);
+      if (!example) return;
+      elements.jobGoal.value = example.jobGoal;
+      elements.experience.value = example.summary;
+      elements.experienceCount.textContent = example.summary.length;
+      const categoryInput = $(`input[name="category"][value="${CSS.escape(example.category)}"]`);
+      if (categoryInput) categoryInput.checked = true;
+      syncStateFromInputs();
+      queueSave();
+      elements.experience.scrollIntoView({ behavior: "smooth", block: "center" });
+      toast("예시를 입력했습니다. 실제 경험에 맞게 역할과 결과를 꼭 수정해주세요.");
+    });
+  });
 }
 
 function cleanSentence(value = "") {
@@ -930,10 +1060,19 @@ function bindEvents() {
       await sendChatMessage(button.dataset.chatPrompt);
     });
   });
+  $$("[data-example-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      $$("[data-example-filter]").forEach((filterButton) => {
+        filterButton.classList.toggle("active", filterButton === button);
+      });
+      renderExperienceExamples(button.dataset.exampleFilter);
+    });
+  });
 }
 
 populateInputs();
 restoreGeneratedContent();
+renderExperienceExamples();
 bindEvents();
 updateAiStatus();
 

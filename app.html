@@ -15,8 +15,8 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&family=DM+Sans:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./app.css?v=20260729-5" />
-    <script src="./app.js?v=20260729-6" defer></script>
+    <link rel="stylesheet" href="./app.css?v=20260729-7" />
+    <script src="./app.js?v=20260729-7" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#workspace">작업 영역으로 바로가기</a>
@@ -111,6 +111,25 @@
             ></textarea>
             <small><span id="experience-count">0</span> / 600자 · 한두 문장으로 편하게 적어주세요.</small>
           </label>
+
+          <section class="example-library" aria-labelledby="example-library-title">
+            <div class="example-library-heading">
+              <div>
+                <span>EXAMPLE LIBRARY</span>
+                <h3 id="example-library-title">막막하다면 분야별 예시로 시작하세요.</h3>
+              </div>
+              <p>예시를 누르면 입력칸에 적용됩니다. 반드시 내 실제 경험에 맞게 고쳐주세요.</p>
+            </div>
+            <div class="example-filters" role="group" aria-label="경험 예시 분야">
+              <button class="active" type="button" data-example-filter="all">전체</button>
+              <button type="button" data-example-filter="office">사무·행정</button>
+              <button type="button" data-example-filter="service">고객·판매</button>
+              <button type="button" data-example-filter="care">돌봄·교육</button>
+              <button type="button" data-example-filter="field">운영·현장</button>
+              <button type="button" data-example-filter="digital">디지털</button>
+            </div>
+            <div class="example-grid" id="experience-example-grid"></div>
+          </section>
 
           <div class="tip-card">
             <span>좋은 시작 예시</span>
@@ -301,6 +320,9 @@
         <button type="button" data-chat-prompt="내 경험에서 지원 직무와 연결할 수 있는 강점 3가지를 찾아줘.">내 강점 찾기</button>
         <button type="button" data-chat-prompt="현재 이력서 문장을 더 구체적이고 읽기 쉽게 다듬어줘.">문장 다듬기</button>
         <button type="button" data-chat-prompt="내 경험을 바탕으로 면접 연습 질문을 하나씩 해줘.">면접 연습</button>
+        <button type="button" data-chat-prompt="사무·행정 분야에서 생활 경험을 경력으로 바꾸는 예시를 3개 보여줘.">사무 예시</button>
+        <button type="button" data-chat-prompt="고객응대·판매 분야에서 생활 경험을 경력으로 바꾸는 예시를 3개 보여줘.">서비스 예시</button>
+        <button type="button" data-chat-prompt="돌봄·교육·현장운영 분야에서 생활 경험을 경력으로 바꾸는 예시를 3개 보여줘.">돌봄·현장 예시</button>
       </div>
 
       <form id="chat-form" class="chat-form">
