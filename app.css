@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -964,7 +968,7 @@ dialog p {
   font-size: 13px;
 }
 
-dialog form > div {
+#reset-dialog form > div {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
@@ -1281,7 +1285,9 @@ dialog form > div {
   .field input,
   .field textarea,
   .question-field input,
-  .question-field textarea {
+  .question-field textarea,
+  .fact-card textarea,
+  .editable-result {
     padding: 14px;
     border-radius: 13px;
     font-size: 16px;
