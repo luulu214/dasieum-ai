@@ -119,6 +119,7 @@ const emptyState = () => ({
     intro: "",
     interview: "",
   },
+  savedCareers: [],
   actions: [false, false, false, false, false, false, false],
 });
 
@@ -174,12 +175,24 @@ const elements = {
   chatConnectionLabel: $("#chat-connection-label"),
   chatConnectAi: $("#chat-connect-ai"),
   exampleGrid: $("#experience-example-grid"),
+  savedCareerList: $("#saved-career-list"),
 };
 
 function loadState() {
   try {
+    const base = emptyState();
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return saved ? { ...emptyState(), ...saved } : emptyState();
+    if (!saved) return base;
+    return {
+      ...base,
+      ...saved,
+      profile: { ...base.profile, ...(saved.profile || {}) },
+      interview: { ...base.interview, ...(saved.interview || {}) },
+      facts: Array.isArray(saved.facts) ? saved.facts : [],
+      outputs: { ...base.outputs, ...(saved.outputs || {}) },
+      savedCareers: Array.isArray(saved.savedCareers) ? saved.savedCareers : [],
+      actions: Array.from({ length: 7 }, (_, index) => Boolean(saved.actions?.[index])),
+    };
   } catch {
     return emptyState();
   }
@@ -203,11 +216,12 @@ function getApiKey() {
 function updateAiStatus() {
   const connected = Boolean(getApiKey());
   $("#ai-settings").classList.toggle("connected", connected);
-  elements.aiStatusLabel.textContent = connected ? "Solar 연결됨" : "Solar AI 연결";
+  elements.aiStatusLabel.textContent = connected ? "상담 열기" : "기본 상담 열기";
   elements.disconnectAi.hidden = !connected;
-  elements.chatConnectionLabel.textContent = connected ? `${UPSTAGE_MODEL} 연결됨` : "Solar 연결 필요";
-  elements.chatConnectAi.textContent = connected ? "연결 관리" : "AI 연결";
-  elements.chatPanel.classList.toggle("connected", connected);
+  elements.chatConnectionLabel.textContent = connected ? `${UPSTAGE_MODEL} 연결됨` : "기본 상담 사용 가능";
+  elements.chatConnectAi.textContent = connected ? "연결 관리" : "Solar 선택 연결";
+  elements.chatConnectAi.hidden = true;
+  elements.chatPanel.classList.add("connected");
 }
 
 function setButtonLoading(button, loading, label) {
@@ -308,7 +322,7 @@ function renderExperienceExamples(filter = "all") {
       elements.jobGoal.value = example.jobGoal;
       elements.experience.value = example.summary;
       elements.experienceCount.textContent = example.summary.length;
-      const categoryInput = $(`input[name="category"][value="${CSS.escape(example.category)}"]`);
+      const categoryInput = $$("input[name='category']").find((input) => input.value === example.category);
       if (categoryInput) categoryInput.checked = true;
       syncStateFromInputs();
       queueSave();
@@ -336,6 +350,80 @@ function compact(value, max = 130) {
   return clean.length > max ? `${clean.slice(0, max).trim()}…` : clean;
 }
 
+function inferCareerTasks(value = "") {
+  const source = cleanSentence(value).toLowerCase();
+  const rules = [
+    ["교육 참여와 학습 내용 정리", ["교육", "수업", "강의", "학습", "배우", "듣기", "수강"]],
+    ["디지털 도구를 활용한 기획과 제작", ["ai", "인공지능", "웹", "홈페이지", "코딩", "개발", "제미나이", "코덱스", "안티그래비티", "mcp"]],
+    ["일정 관리와 우선순위 조정", ["일정", "시간", "스케줄", "마감"]],
+    ["자료 정리와 문서 관리", ["문서", "자료", "정리", "기록", "표", "엑셀", "스프레드시트"]],
+    ["고객 문의 확인과 요청 사항 정리", ["고객", "문의", "상담", "응대", "주문"]],
+    ["현장 운영과 인력 조율", ["행사", "축제", "봉사", "인력", "배치", "운영"]],
+    ["재고와 작업 흐름 관리", ["재고", "포장", "물품", "배송", "검수"]],
+    ["돌봄 일정과 생활 운영 관리", ["돌봄", "육아", "아이", "가족", "병원", "등하원"]],
+  ];
+  const matches = rules
+    .filter(([, keywords]) => keywords.some((keyword) => source.includes(keyword)))
+    .map(([label]) => label);
+  return [...new Set(matches)].slice(0, 2);
+}
+
+function professionalSituation(value = "") {
+  const source = cleanSentence(value);
+  if (!source) return "새로운 업무 방식을 익혀 실제 과제에 적용해야 하는 상황에서";
+  if (/활용|능력|배우|교육|처음|낯설|어렵|부족/i.test(source)) {
+    return "새로운 지식과 도구를 실제 과제에 적용해야 하는 상황에서";
+  }
+  if (/겹|충돌|늦|지연|문제|부족|변경|누락/i.test(source)) {
+    return "예정된 업무에 차질이 생길 수 있는 상황에서";
+  }
+  return `${compact(source, 90)}라는 과제를 해결하기 위해`;
+}
+
+function professionalAction(value = "") {
+  const source = cleanSentence(value);
+  const tasks = inferCareerTasks(source);
+  if (/꾸준|반복|계속|듣기|수강|학습|연습/i.test(source)) {
+    return "관련 내용을 꾸준히 학습하고 반복 실습하며 활용 방법을 익혔습니다";
+  }
+  if (/정리|기록|문서|표|엑셀|스프레드시트/i.test(source)) {
+    return "필요한 정보를 기준에 맞게 정리하고 진행 내용을 기록했습니다";
+  }
+  if (/조율|배치|일정|시간|스케줄/i.test(source)) {
+    return "가능한 일정과 우선순위를 다시 확인해 업무 순서를 조정했습니다";
+  }
+  if (/문의|고객|응대|안내|소통|공유/i.test(source)) {
+    return "요청 사항을 정확히 확인하고 필요한 내용을 이해하기 쉽게 전달했습니다";
+  }
+  if (/제작|개발|웹|홈페이지|코딩|ai|제미나이|코덱스|안티그래비티|mcp/i.test(source)) {
+    return "디지털 도구를 직접 활용해 결과물을 만들고 수정 과정을 반복했습니다";
+  }
+  if (tasks.length) return `${tasks.join("·")} 관련 절차를 직접 실행했습니다`;
+  return `${compact(source || "필요한 업무", 80)}를 작은 실행 단위로 나누어 꾸준히 수행했습니다`;
+}
+
+function professionalResult(value = "", competencies = []) {
+  const source = cleanSentence(value);
+  const skillText = competencies.slice(0, 2).join("·") || "실행력·문제 해결";
+  if (!source || /아직|진행\s*중|하는\s*중|배우는\s*중|계속/i.test(source)) {
+    return `현재도 경험을 계속 확장하며 ${skillText} 역량을 쌓고 있습니다`;
+  }
+  if (/완료|마무리|끝|성공|문제\s*없|차질\s*없/i.test(source)) {
+    return `계획한 업무를 차질 없이 마무리하며 ${skillText} 역량을 보여주었습니다`;
+  }
+  return `${compact(source, 90)}라는 결과를 만들었으며, 그 과정에서 ${skillText} 역량을 발휘했습니다`;
+}
+
+function careerDraftFromCurrentState() {
+  const p = state.profile;
+  const a = state.interview;
+  const source = [p.experience, a.role, a.action, a.tools].filter(Boolean).join(" ");
+  const tasks = inferCareerTasks(source);
+  const competencies = detectCompetencies();
+  const taskText = tasks.length ? `${tasks.join("·")} 관련 업무` : `${p.jobGoal || "희망 직무"} 업무`;
+  return `${p.category || "생활"} 경험에서 ${taskText}를 책임 있게 수행하고, ${professionalAction(a.action || p.experience)}. 이를 통해 ${competencies.slice(0, 2).join("·")} 역량을 쌓았습니다.`;
+}
+
 function syncStateFromInputs() {
   state.profile.jobGoal = elements.jobGoal.value.trim();
   state.profile.region = elements.region.value.trim();
@@ -354,7 +442,7 @@ function populateInputs() {
   elements.region.value = state.profile.region;
   elements.experience.value = state.profile.experience;
   elements.experienceCount.textContent = state.profile.experience.length;
-  const categoryInput = $(`input[name="category"][value="${CSS.escape(state.profile.category)}"]`);
+  const categoryInput = $$("input[name='category']").find((input) => input.value === state.profile.category);
   if (categoryInput) categoryInput.checked = true;
 
   elements.period.value = state.interview.period;
@@ -436,28 +524,35 @@ function buildFactStatements() {
   syncStateFromInputs();
   const p = state.profile;
   const a = state.interview;
+  const source = [p.experience, a.role, a.action, a.tools].filter(Boolean).join(" ");
+  const tasks = inferCareerTasks(source);
+  const competencies = detectCompetencies();
+  const taskText = tasks.length ? `${tasks.join("·")} 관련 업무` : `${cleanSentence(p.jobGoal)} 업무`;
   const periodPrefix = a.period ? `${cleanSentence(a.period)} 동안 ` : "";
-  const toolsSuffix = a.tools ? ` ${cleanSentence(a.tools)} 방식으로 협업했습니다.` : "";
+  const categoryPrefix = p.category ? `${cleanSentence(p.category)} 경험에서 ` : "";
+  const toolSentence = a.tools
+    ? ` 이 과정에서 ${compact(cleanSentence(a.tools), 70)} 등 입력한 도구를 활용해 진행 과정을 구체화했습니다.`
+    : "";
 
   const statements = [
     {
       id: "fact-role",
       label: "역할과 책임",
-      text: `${periodPrefix}${cleanSentence(a.role)}.`,
-      evidence: firstUseful(a.period, a.role),
+      text: `${periodPrefix}${categoryPrefix}${taskText}를 맡아 필요한 내용을 스스로 정리하고 책임 있게 수행했습니다.`,
+      evidence: [p.experience, a.period, a.role].filter(Boolean).map(cleanSentence).join(" / "),
       approved: false,
     },
     {
       id: "fact-action",
       label: "문제 해결 행동",
-      text: `${cleanSentence(a.situation)} 상황에서 ${cleanSentence(a.action)}.${toolsSuffix}`,
+      text: `${professionalSituation(a.situation)} ${professionalAction(a.action)}.${toolSentence}`,
       evidence: `${cleanSentence(a.situation)} / ${cleanSentence(a.action)}${a.tools ? ` / ${cleanSentence(a.tools)}` : ""}`,
       approved: false,
     },
     {
       id: "fact-result",
       label: "결과와 직무 연결",
-      text: `${ensureEnding(a.result)} 이 경험은 ${cleanSentence(p.jobGoal)} 업무에 필요한 실행력과 조율 역량을 보여줍니다.`,
+      text: `${professionalResult(a.result, competencies)}. 이 경험을 ${cleanSentence(p.jobGoal)} 업무에 연결해 빠르게 배우고 끝까지 실행하겠습니다.`,
       evidence: `${cleanSentence(a.result)} / 희망 직무: ${cleanSentence(p.jobGoal)}`,
       approved: false,
     },
@@ -472,7 +567,7 @@ async function buildFactStatementsWithAI() {
   const button = $("#generate-facts");
   if (!getApiKey()) {
     buildFactStatements();
-    toast("기본 경력번역으로 만들었습니다. Solar를 연결하면 문장을 더 자연스럽게 다듬을 수 있어요.");
+    toast("입력한 사실을 바탕으로 자소서·이력서용 문장으로 다시 작성했습니다.");
     return;
   }
 
@@ -598,18 +693,21 @@ function buildOutputs() {
   const approved = state.facts.filter((fact) => fact.approved).map((fact) => cleanSentence(fact.text));
   const competencies = detectCompetencies();
   const region = p.region ? ` ${p.region} 지역의` : "";
+  const roleFact = approved[0] || careerDraftFromCurrentState();
+  const actionFact = approved[1] || professionalAction(a.action || p.experience);
+  const resultFact = approved[2] || professionalResult(a.result, competencies);
 
   state.outputs.resume = approved.map((line) => `• ${ensureEnding(line)}`).join("\n");
   state.outputs.intro =
     `안녕하세요. 저는 ${p.category} 경험에서 ${competencies.slice(0, 3).join(", ")} 역량을 쌓았습니다. ` +
-    `${cleanSentence(a.situation)} 상황에서 ${cleanSentence(a.action)}. 그 결과 ${cleanSentence(a.result)}. ` +
+    `${roleFact} ${actionFact} ${resultFact} ` +
     `이 경험을 바탕으로${region} ${p.jobGoal} 업무에서 빠르게 상황을 파악하고 끝까지 실행하겠습니다.`;
   state.outputs.interview =
     `[예상 질문] ${p.category} 경험에서 문제를 해결한 사례를 말씀해주세요.\n\n` +
-    `[S · 상황]\n${ensureEnding(a.situation)}\n\n` +
-    `[T · 과제]\n${ensureEnding(a.role)}\n\n` +
-    `[A · 행동]\n${ensureEnding(a.action)}${a.tools ? ` ${ensureEnding(a.tools)}` : ""}\n\n` +
-    `[R · 결과]\n${ensureEnding(a.result)}`;
+    `[S · 상황]\n${ensureEnding(professionalSituation(a.situation))}\n\n` +
+    `[T · 과제]\n${ensureEnding(roleFact)}\n\n` +
+    `[A · 행동]\n${ensureEnding(actionFact)}\n\n` +
+    `[R · 결과]\n${ensureEnding(resultFact)}`;
 
   elements.resumeOutput.textContent = state.outputs.resume;
   elements.introOutput.textContent = state.outputs.intro;
@@ -750,6 +848,95 @@ function downloadResults() {
   queueSave();
 }
 
+async function writeClipboard(text, successMessage) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  toast(successMessage);
+}
+
+function renderSavedCareers() {
+  if (!elements.savedCareerList) return;
+  if (!state.savedCareers.length) {
+    elements.savedCareerList.innerHTML = `
+      <div class="saved-career-empty">
+        <b>아직 저장한 경력이 없습니다.</b>
+        <span>위 결과를 확인한 뒤 ‘경력 보관함에 저장’을 눌러보세요.</span>
+      </div>
+    `;
+    return;
+  }
+
+  elements.savedCareerList.innerHTML = state.savedCareers
+    .map(
+      (career) => `
+        <article class="saved-career-card" data-saved-career-id="${escapeHtml(career.id)}">
+          <div class="saved-career-top">
+            <div>
+              <span>${escapeHtml(career.category || "생활 경험")} · ${escapeHtml(career.savedAt)}</span>
+              <h4>${escapeHtml(career.jobGoal || "희망 직무")} 경력 문장</h4>
+            </div>
+            <div>
+              <button type="button" data-saved-copy="resume">이력서 문장 복사</button>
+              <button type="button" data-saved-copy="intro">자기소개 복사</button>
+            </div>
+          </div>
+          <p>${escapeHtml(compact(career.resume, 240))}</p>
+        </article>
+      `,
+    )
+    .join("");
+
+  $$("[data-saved-career-id]").forEach((card) => {
+    const career = state.savedCareers.find((item) => item.id === card.dataset.savedCareerId);
+    card.querySelectorAll("[data-saved-copy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const type = button.dataset.savedCopy;
+        const text = type === "intro" ? career.intro : career.resume;
+        await writeClipboard(text, type === "intro" ? "자기소개를 복사했습니다." : "이력서 문장을 복사했습니다.");
+      });
+    });
+  });
+}
+
+function saveCurrentCareer() {
+  syncStateFromInputs();
+  syncOutputsFromEditor();
+  if (!state.outputs.resume.trim()) {
+    toast("먼저 경력 결과물을 만들어주세요.");
+    return;
+  }
+
+  const existing = state.savedCareers.find((career) => career.resume === state.outputs.resume);
+  if (existing) {
+    existing.intro = state.outputs.intro;
+    existing.interview = state.outputs.interview;
+    existing.savedAt = new Intl.DateTimeFormat("ko-KR").format(new Date());
+    toast("같은 경력의 최신 내용을 보관함에 반영했습니다.");
+  } else {
+    state.savedCareers.unshift({
+      id: `career-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      jobGoal: state.profile.jobGoal,
+      category: state.profile.category,
+      resume: state.outputs.resume,
+      intro: state.outputs.intro,
+      interview: state.outputs.interview,
+      savedAt: new Intl.DateTimeFormat("ko-KR").format(new Date()),
+    });
+    state.savedCareers = state.savedCareers.slice(0, 20);
+    toast("경력 보관함에 저장했습니다.");
+  }
+  renderSavedCareers();
+  queueSave();
+}
+
 function toast(message) {
   let toastElement = $(".toast");
   if (!toastElement) {
@@ -759,7 +946,7 @@ function toast(message) {
       position: "fixed",
       zIndex: "999",
       right: "22px",
-      bottom: "22px",
+      bottom: "86px",
       maxWidth: "340px",
       padding: "13px 17px",
       color: "#fff",
@@ -768,6 +955,7 @@ function toast(message) {
       boxShadow: "0 15px 40px rgba(0,0,0,.2)",
       fontSize: "12px",
       fontWeight: "700",
+      pointerEvents: "none",
       transition: "opacity .2s ease",
     });
     document.body.appendChild(toastElement);
@@ -809,7 +997,7 @@ function ensureChatWelcome() {
   if (elements.chatMessages.children.length) return;
   addChatMessage(
     "assistant",
-    "안녕하세요. 입력한 경험을 바탕으로 이력서 문장, 강점 찾기, 면접 연습을 도와드릴게요. 무엇이 가장 궁금한가요?",
+    "안녕하세요. 별도 연결 없이도 입력한 경험을 바탕으로 문장 다듬기, 강점 찾기, 면접 연습을 도와드릴게요. 무엇이 가장 궁금한가요?",
   );
 }
 
@@ -825,6 +1013,11 @@ function closeChat() {
   elements.chatPanel.hidden = true;
   elements.chatLauncher.classList.remove("panel-open");
   elements.chatLauncher.setAttribute("aria-expanded", "false");
+}
+
+function toggleChat() {
+  if (elements.chatPanel.hidden) openChat();
+  else closeChat();
 }
 
 function chatContext() {
@@ -847,6 +1040,37 @@ function setChatBusy(busy) {
   elements.chatPanel.classList.toggle("thinking", busy);
 }
 
+function localCareerCoachReply(message) {
+  const query = cleanSentence(message).toLowerCase();
+  const competencies = detectCompetencies();
+  const draft = state.outputs.resume
+    || state.facts.map((fact) => `• ${ensureEnding(fact.text)}`).join("\n")
+    || `• ${careerDraftFromCurrentState()}`;
+
+  if (!state.profile.experience && !Object.values(state.interview).some(Boolean)) {
+    return "아직 입력된 경험이 없어요. 먼저 ‘누구를 위해 무엇을 했는지’를 한 문장으로 적어주세요. 예: 지역 행사에서 참여자 일정을 확인하고 부족한 인력을 다시 배치했어요.";
+  }
+  if (/문장|다듬|자소서|이력서|경력/.test(query)) {
+    return `자소서·이력서용으로 이렇게 정리할 수 있어요.\n${draft}\n최종 제출 전 숫자와 결과가 실제 경험과 맞는지 확인해주세요.`;
+  }
+  if (/강점|역량|장점/.test(query)) {
+    return `입력한 경험에서 보이는 강점은 1. ${competencies[0]}, 2. ${competencies[1]}, 3. ${competencies[2]}입니다. 자소서에는 강점만 쓰기보다 그 강점을 보여준 행동과 결과를 함께 적어주세요.`;
+  }
+  if (/면접|질문|연습/.test(query)) {
+    return `면접 연습을 시작할게요. “${state.profile.category || "생활"} 경험에서 예상과 다른 문제가 생겼을 때, 본인이 직접 한 행동과 그 결과는 무엇이었나요?”라고 묻는다면 1분 안에 답해보세요.`;
+  }
+  if (/사무|행정/.test(query)) {
+    return "사무·행정 문장 예시: 여러 일정과 요청 사항을 기준에 맞게 정리하고, 변경 내용을 관계자에게 공유해 업무 누락을 예방했습니다.";
+  }
+  if (/고객|판매|서비스/.test(query)) {
+    return "고객·판매 문장 예시: 문의 내용을 정확히 확인하고 요청 사항을 정리해 전달함으로써 원활한 고객 응대를 지원했습니다.";
+  }
+  if (/돌봄|교육|현장/.test(query)) {
+    return "돌봄·현장 문장 예시: 대상자의 일정과 상황 변화를 지속적으로 확인하고 필요한 조치를 조율해 안정적인 운영을 지원했습니다.";
+  }
+  return `입력한 경험은 ${competencies.slice(0, 3).join(", ")} 역량과 연결할 수 있어요. 먼저 “내가 직접 맡은 일 → 문제를 해결한 행동 → 확인된 결과” 순서로 적으면 자소서 문장이 훨씬 선명해집니다. 문장 다듬기나 면접 연습 중 원하는 도움을 말해주세요.`;
+}
+
 async function sendChatMessage(rawMessage) {
   const message = rawMessage.trim();
   if (!message || chatBusy) return;
@@ -855,10 +1079,15 @@ async function sendChatMessage(rawMessage) {
   elements.chatInput.value = "";
 
   if (!getApiKey()) {
-    addChatMessage(
-      "assistant",
-      "Solar AI 연결이 필요해요. 채팅창 위의 ‘AI 연결’을 눌러 Upstage API Key를 연결하면 바로 상담할 수 있습니다.",
-    );
+    setChatBusy(true);
+    const typing = addChatMessage("assistant", "입력한 경험을 바탕으로 정리하고 있어요…");
+    typing.classList.add("typing");
+    window.setTimeout(() => {
+      typing.remove();
+      addChatMessage("assistant", localCareerCoachReply(message));
+      setChatBusy(false);
+      elements.chatInput.focus();
+    }, 240);
     return;
   }
 
@@ -899,8 +1128,10 @@ async function sendChatMessage(rawMessage) {
 }
 
 function resetProject() {
+  const savedCareers = Array.isArray(state.savedCareers) ? [...state.savedCareers] : [];
   localStorage.removeItem(STORAGE_KEY);
   state = emptyState();
+  state.savedCareers = savedCareers;
   activeResultTab = "resume";
   populateInputs();
   elements.factList.innerHTML = "";
@@ -921,6 +1152,7 @@ function restoreGeneratedContent() {
     elements.interviewOutput.textContent = state.outputs.interview;
     elements.competencyTags.innerHTML = detectCompetencies().map((tag) => `<b>${escapeHtml(tag)}</b>`).join("");
   }
+  renderSavedCareers();
   buildActionPlan();
 }
 
@@ -995,6 +1227,7 @@ function bindEvents() {
 
   $("#copy-current").addEventListener("click", copyCurrentResult);
   $("#download-results").addEventListener("click", downloadResults);
+  $("#save-career").addEventListener("click", saveCurrentCareer);
   $("#to-step-5").addEventListener("click", () => {
     syncOutputsFromEditor();
     buildActionPlan();
@@ -1005,7 +1238,7 @@ function bindEvents() {
   $("#restart-service").addEventListener("click", () => elements.resetDialog.showModal());
   $("#reset-top").addEventListener("click", () => elements.resetDialog.showModal());
   $("#confirm-reset").addEventListener("click", resetProject);
-  $("#ai-settings").addEventListener("click", openAiDialog);
+  $("#ai-settings").addEventListener("click", openChat);
   $("#close-ai-dialog").addEventListener("click", () => elements.aiDialog.close());
   $("#toggle-api-key").addEventListener("click", () => {
     const visible = elements.apiKey.type === "text";
@@ -1042,7 +1275,7 @@ function bindEvents() {
       connectButton.textContent = "연결 확인";
     }
   });
-  elements.chatLauncher.addEventListener("click", openChat);
+  elements.chatLauncher.addEventListener("click", toggleChat);
   $("#chat-close").addEventListener("click", closeChat);
   elements.chatConnectAi.addEventListener("click", openAiDialog);
   $("#chat-form").addEventListener("submit", async (event) => {
@@ -1070,12 +1303,20 @@ function bindEvents() {
   });
 }
 
-populateInputs();
-restoreGeneratedContent();
-renderExperienceExamples();
 bindEvents();
 updateAiStatus();
-
-elements.contextCategory.textContent = state.profile.category || "경험 유형";
-elements.contextSummary.textContent = state.profile.experience || "입력한 경험이 여기에 표시됩니다.";
-showStep(Math.min(state.currentStep, state.unlockedStep), { skipSave: true });
+try {
+  populateInputs();
+  restoreGeneratedContent();
+  renderExperienceExamples();
+  elements.contextCategory.textContent = state.profile.category || "경험 유형";
+  elements.contextSummary.textContent = state.profile.experience || "입력한 경험이 여기에 표시됩니다.";
+  showStep(Math.min(state.currentStep, state.unlockedStep), { skipSave: true });
+} catch (error) {
+  console.error("초기 화면 복원 중 오류:", error);
+  state = emptyState();
+  populateInputs();
+  renderExperienceExamples();
+  showStep(1, { skipSave: true });
+  toast("이전 저장 내용을 정리하고 새 화면을 열었습니다.");
+}
