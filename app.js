@@ -424,6 +424,26 @@ function careerDraftFromCurrentState() {
   return `${p.category || "생활"} 경험에서 ${taskText}를 책임 있게 수행하고, ${professionalAction(a.action || p.experience)}. 이를 통해 ${competencies.slice(0, 2).join("·")} 역량을 쌓았습니다.`;
 }
 
+function careerBulletDraftFromCurrentState() {
+  const p = state.profile;
+  const a = state.interview;
+  const source = [p.experience, a.role, a.action, a.tools].filter(Boolean).join(" ");
+  const tasks = inferCareerTasks(source);
+  const competencies = detectCompetencies();
+  const taskText = tasks.length ? `${tasks.join("·")} 관련 업무` : `${p.jobGoal || "희망 직무"} 업무`;
+  const periodPrefix = a.period ? `${cleanSentence(a.period)} 동안 ` : "";
+  const toolSentence = a.tools
+    ? ` 이 과정에서 ${compact(cleanSentence(a.tools), 70)} 등 입력한 도구를 활용해 진행 과정을 구체화했습니다.`
+    : "";
+  return [
+    `${periodPrefix}${p.category || "생활"} 경험에서 ${taskText}를 맡아 필요한 내용을 스스로 정리하고 책임 있게 수행했습니다.`,
+    `${professionalSituation(a.situation)} ${professionalAction(a.action || p.experience)}.${toolSentence}`,
+    `${professionalResult(a.result, competencies)}. 이 경험을 ${p.jobGoal || "희망 직무"} 업무에 연결해 빠르게 배우고 끝까지 실행하겠습니다.`,
+  ]
+    .map((line) => `• ${line}`)
+    .join("\n");
+}
+
 function syncStateFromInputs() {
   state.profile.jobGoal = elements.jobGoal.value.trim();
   state.profile.region = elements.region.value.trim();
@@ -1043,9 +1063,7 @@ function setChatBusy(busy) {
 function localCareerCoachReply(message) {
   const query = cleanSentence(message).toLowerCase();
   const competencies = detectCompetencies();
-  const draft = state.outputs.resume
-    || state.facts.map((fact) => `• ${ensureEnding(fact.text)}`).join("\n")
-    || `• ${careerDraftFromCurrentState()}`;
+  const draft = careerBulletDraftFromCurrentState();
 
   if (!state.profile.experience && !Object.values(state.interview).some(Boolean)) {
     return "아직 입력된 경험이 없어요. 먼저 ‘누구를 위해 무엇을 했는지’를 한 문장으로 적어주세요. 예: 지역 행사에서 참여자 일정을 확인하고 부족한 인력을 다시 배치했어요.";
