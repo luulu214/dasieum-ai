@@ -350,6 +350,13 @@ function compact(value, max = 130) {
   return clean.length > max ? `${clean.slice(0, max).trim()}…` : clean;
 }
 
+function formatPeriodPrefix(value = "") {
+  const period = cleanSentence(value);
+  if (!period) return "";
+  if (/^(지금|현재|요즘|진행\s*중)$/i.test(period)) return "현재 ";
+  return `${period} 동안 `;
+}
+
 function inferCareerTasks(value = "") {
   const source = cleanSentence(value).toLowerCase();
   const rules = [
@@ -431,7 +438,7 @@ function careerBulletDraftFromCurrentState() {
   const tasks = inferCareerTasks(source);
   const competencies = detectCompetencies();
   const taskText = tasks.length ? `${tasks.join("·")} 관련 업무` : `${p.jobGoal || "희망 직무"} 업무`;
-  const periodPrefix = a.period ? `${cleanSentence(a.period)} 동안 ` : "";
+  const periodPrefix = formatPeriodPrefix(a.period);
   const toolSentence = a.tools
     ? ` 이 과정에서 ${compact(cleanSentence(a.tools), 70)} 등 입력한 도구를 활용해 진행 과정을 구체화했습니다.`
     : "";
@@ -548,7 +555,7 @@ function buildFactStatements() {
   const tasks = inferCareerTasks(source);
   const competencies = detectCompetencies();
   const taskText = tasks.length ? `${tasks.join("·")} 관련 업무` : `${cleanSentence(p.jobGoal)} 업무`;
-  const periodPrefix = a.period ? `${cleanSentence(a.period)} 동안 ` : "";
+  const periodPrefix = formatPeriodPrefix(a.period);
   const categoryPrefix = p.category ? `${cleanSentence(p.category)} 경험에서 ` : "";
   const toolSentence = a.tools
     ? ` 이 과정에서 ${compact(cleanSentence(a.tools), 70)} 등 입력한 도구를 활용해 진행 과정을 구체화했습니다.`
